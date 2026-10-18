@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
 from PIL import Image, UnidentifiedImageError
+from pypdf import PdfReader
 import google.generativeai as genai
 
 app = FastAPI(title="آزمایش‌یار")
@@ -19,24 +20,30 @@ SYSTEM_PROMPT = """
 ۳. تحلیل مقادیر: به پارامترهای غیرطبیعی و مهم آزمایش اشاره کنید و علت اهمیت آنها را بیان نمایید.
 """
 
-def analyze_lab_data(user_text: str = "", image_file: Image.Image | None = None) -> str:
-    gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
-    if not gemini_key:
+def analyze_lab_data(user_text: str = "", image_file: Image.Image | None = None, pdf_text: str = "") -> str:
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not api_key:
         return "خطا: متغیر GEMINI_API_KEY در تنظیمات Environment رندر وارد نشده است."
 
     contents = []
+    combined_text = ""
     if user_text.strip():
-        contents.append(user_text.strip())
+        combined_text += f"توضیحات بیمار:\n{user_text.strip()}\n\n"
+    if pdf_text.strip():
+        combined_text += f"متن استخراج‌شده از فایل PDF آزمایش:\n{pdf_text.strip()}\n"
+
+    if combined_text.strip():
+        contents.append(combined_text.strip())
+
     if image_file is not None:
         contents.append(image_file)
 
     if not contents:
-        return "لطفاً متن مقادیر آزمایش را بنویسید یا عکس برگه آزمایش را انتخاب کنید."
+        return "لطفاً متن مقادیر آزمایش را بنویسید یا عکس/فایل PDF برگه آزمایش را انتخاب کنید."
 
     try:
-        genai.configure(api_key=gemini_key)
+        genai.configure(api_key=api_key)
 
-        # مدل‌های پیشنهادی گوگل بر اساس پیام خطا
         model_names = [
             "gemini-3.8-flash",
             "gemini-3.0-flash",
@@ -77,17 +84,36 @@ async def read_root():
 @app.post("/api/analyze")
 async def analyze(text: str = Form(""), file: UploadFile | None = File(None)):
     pil_image = None
-    if file and file.filename:
-        try:
-            image_bytes = await file.read()
-            pil_image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-        except (UnidentifiedImageError, OSError):
-            return JSONResponse(
-                {"analysis": "فرمت تصویر پشتیبانی نمی‌شود یا فایل خراب است."},
-                status_code=400
-            )
+    extracted_pdf_text = ""
 
-    result = analyze_lab_data(user_text=text, image_file=pil_image)
+    if file and file.filename:
+        filename_lower = file.filename.lower()
+        file_bytes = await file.read()
+
+        # اگر کاربر فایل PDF آپلود کرده باشد
+        if filename_lower.endswith(".pdf"):
+            try:
+                reader = PdfReader(io.BytesIO(file_bytes))
+                for page in reader.pages:
+                    text_content = page.extract_text()
+                    if text_content:
+                        extracted_pdf_text += text_content + "\n"
+            except Exception:
+                return JSONResponse(
+                    {"analysis": "خطا در خواندن فایل PDF. لطفاً مطمئن شوید فایل رمزدار یا خراب نیست."},
+                    status_code=400
+                )
+        else:
+            # اگر فایل تصویری باشد
+            try:
+                pil_image = Image.open(io.BytesIO(file_bytes)).convert("RGB")
+            except (UnidentifiedImageError, OSError):
+                return JSONResponse(
+                    {"analysis": "فرمت فایل پشتیبانی نمی‌شود. لطفاً تصویر معتبر یا فایل PDF آپلود کنید."},
+                    status_code=400
+                )
+
+    result = analyze_lab_data(user_text=text, image_file=pil_image, pdf_text=extracted_pdf_text)
     return JSONResponse({"analysis": result})
 
 if __name__ == "__main__":
