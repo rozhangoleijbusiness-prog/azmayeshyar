@@ -86,7 +86,7 @@
                 <h2 class="text-base md:text-lg font-bold text-slate-800">صرفه‌جویی در زمان و هزینه با مراجعه به تخصص
                     صحیح</h2>
                 <p class="text-xs md:text-sm text-slate-600 leading-relaxed">
-                    برگه آزمایش خود را بارگذاری کنید یا مقادیر آن را بگویید تا آزمایش‌یار به جای پیشنهاد ده‌ها تخصص
+                    برگه آزمایش خود را بارگذاری کنید (تصویر یا فایل PDF) یا مقادیر آن را بگویید تا آزمایش‌یار به جای پیشنهاد ده‌ها تخصص
                     پراکنده، <strong>دقیقاً ۱ پزشک مرتبط</strong> را به شما معرفی کند.
                 </p>
             </div>
@@ -126,23 +126,25 @@
             <!-- تقسیم‌کننده گرافیکی -->
             <div class="relative flex py-1 items-center">
                 <div class="flex-grow border-t border-slate-200"></div>
-                <span class="flex-shrink mx-4 text-xs text-slate-400 font-medium">یا بارگذاری مستقیم تصویر</span>
+                <span class="flex-shrink mx-4 text-xs text-slate-400 font-medium">یا بارگذاری تصویر / فایل PDF آزمایش</span>
                 <div class="flex-grow border-t border-slate-200"></div>
             </div>
 
-            <!-- باکس آپلود تصویر با Drag and Drop / Preview -->
+            <!-- باکس آپلود تصویر و PDF با Drag and Drop / Preview -->
             <div>
                 <label for="imageInput"
                     class="group relative flex flex-col items-center justify-center border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-2xl p-6 cursor-pointer bg-slate-50/70 hover:bg-emerald-50/30 transition text-center">
+                    
                     <div id="uploadPrompt" class="space-y-2">
                         <div
                             class="w-12 h-12 mx-auto rounded-full bg-emerald-100/60 text-emerald-600 flex items-center justify-center text-xl group-hover:scale-110 transition">
                             <i class="fa-solid fa-cloud-arrow-up"></i>
                         </div>
-                        <p class="text-sm font-semibold text-slate-700">عکس برگه آزمایش را انتخاب یا اینجا رها کنید</p>
-                        <p class="text-xs text-slate-400">فرمت‌های مجاز: JPG, PNG, WEBP (حداکثر ۱۰ مگابایت)</p>
+                        <p class="text-sm font-semibold text-slate-700">عکس یا فایل PDF آزمایش را انتخاب یا اینجا رها کنید</p>
+                        <p class="text-xs text-slate-400">فرمت‌های مجاز: PDF, JPG, PNG, WEBP (حداکثر ۱۰ مگابایت)</p>
                     </div>
 
+                    <!-- کادر پیش‌نمایش عکس -->
                     <div id="imagePreviewContainer" class="hidden relative">
                         <img id="imagePreview" src="#" alt="پیش‌نمایش تصویر آزمایش"
                             class="max-h-48 rounded-xl object-contain shadow-md border border-slate-200">
@@ -152,7 +154,20 @@
                         </button>
                     </div>
 
-                    <input type="file" id="imageInput" accept="image/*" class="hidden">
+                    <!-- کادر پیش‌نمایش فایل PDF -->
+                    <div id="pdfPreviewContainer" class="hidden relative bg-white border border-slate-200 p-4 rounded-xl shadow-sm flex items-center gap-3">
+                        <i class="fa-solid fa-file-pdf text-3xl text-rose-500"></i>
+                        <div class="text-right">
+                            <p id="pdfFileName" class="text-sm font-semibold text-slate-700 max-w-xs truncate"></p>
+                            <span class="text-xs text-emerald-600 font-medium">فایل PDF با موفقیت آماده ارسال شد</span>
+                        </div>
+                        <button id="removePdfBtn" type="button"
+                            class="bg-rose-100 hover:bg-rose-200 text-rose-600 rounded-full w-7 h-7 flex items-center justify-center ml-2 transition">
+                            <i class="fa-solid fa-xmark text-xs"></i>
+                        </button>
+                    </div>
+
+                    <input type="file" id="imageInput" accept="image/*,application/pdf,.pdf" class="hidden">
                 </label>
             </div>
 
@@ -216,32 +231,53 @@
         const imageInput = document.getElementById('imageInput');
         const imagePreviewContainer = document.getElementById('imagePreviewContainer');
         const imagePreview = document.getElementById('imagePreview');
+        const pdfPreviewContainer = document.getElementById('pdfPreviewContainer');
+        const pdfFileName = document.getElementById('pdfFileName');
         const uploadPrompt = document.getElementById('uploadPrompt');
         const removeImageBtn = document.getElementById('removeImageBtn');
+        const removePdfBtn = document.getElementById('removePdfBtn');
 
-        // پیش‌نمایش تصویر
+        // انتخاب و مدیریت پیش‌نمایش فایل (عکس یا PDF)
         imageInput.addEventListener('change', function (e) {
             const file = e.target.files[0];
             if (file) {
-                const reader = new FileReader();
-                reader.onload = function (event) {
-                    imagePreview.src = event.target.result;
+                // اگر فایل پی‌دی‌اف بود
+                if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+                    pdfFileName.textContent = file.name;
                     uploadPrompt.classList.add('hidden');
-                    imagePreviewContainer.classList.remove('hidden');
-                };
-                reader.readAsDataURL(file);
+                    imagePreviewContainer.classList.add('hidden');
+                    pdfPreviewContainer.classList.remove('hidden');
+                } 
+                // اگر فایل عکس بود
+                else {
+                    const reader = new FileReader();
+                    reader.onload = function (event) {
+                        imagePreview.src = event.target.result;
+                        uploadPrompt.classList.add('hidden');
+                        pdfPreviewContainer.classList.add('hidden');
+                        imagePreviewContainer.classList.remove('hidden');
+                    };
+                    reader.readAsDataURL(file);
+                }
             }
         });
 
-        // حذف تصویر انتخاب شده
-        removeImageBtn.addEventListener('click', function (e) {
-            e.stopPropagation();
-            e.preventDefault();
+        // ریست کردن فایل انتخابی
+        function resetFileInput(e) {
+            if (e) {
+                e.stopPropagation();
+                e.preventDefault();
+            }
             imageInput.value = '';
             imagePreview.src = '#';
+            pdfFileName.textContent = '';
             imagePreviewContainer.classList.add('hidden');
+            pdfPreviewContainer.classList.add('hidden');
             uploadPrompt.classList.remove('hidden');
-        });
+        }
+
+        removeImageBtn.addEventListener('click', resetFileInput);
+        removePdfBtn.addEventListener('click', resetFileInput);
 
         // ارسال درخواست تحلیل
         analyzeBtn.addEventListener('click', async () => {
@@ -249,18 +285,18 @@
             const hasFile = imageInput.files.length > 0;
 
             if (!text && !hasFile) {
-                alert("لطفاً متنی درباره آزمایش بنویسید یا عکس برگه آزمایش را انتخاب کنید.");
+                alert("لطفاً متنی درباره آزمایش بنویسید یا عکس/پی‌دی‌اف برگه آزمایش را انتخاب کنید.");
                 return;
             }
 
             analyzeBtn.disabled = true;
             analyzeBtn.innerHTML = `
-        <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-        </svg>
-        <span>در حال بررسی دقیق برگه آزمایش...</span>
-      `;
+                <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                </svg>
+                <span>در حال بررسی دقیق برگه آزمایش...</span>
+            `;
 
             const formData = new FormData();
             formData.append("text", text);
@@ -283,9 +319,9 @@
             } finally {
                 analyzeBtn.disabled = false;
                 analyzeBtn.innerHTML = `
-          <span>تحلیل هوشمند و تعیین پزشک مناسب</span>
-          <i class="fa-solid fa-arrow-left"></i>
-        `;
+                    <span>تحلیل هوشمند و تعیین پزشک مناسب</span>
+                    <i class="fa-solid fa-arrow-left"></i>
+                `;
             }
         });
 
@@ -342,3 +378,4 @@
 </body>
 
 </html>
+
