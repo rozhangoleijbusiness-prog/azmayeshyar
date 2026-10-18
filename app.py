@@ -13,9 +13,9 @@ app = FastAPI(title="آزمایش‌یار")
 templates = Jinja2Templates(directory="templates")
 
 # تنظیم کلید جمینای
-GEMINI_KEY = os.getenv("GEMINI_API_KEY", "")
-if GEMINI_KEY:
-    genai.configure(api_key=GEMINI_KEY)
+gemini_api_key = os.getenv("GEMINI_API_KEY", "")
+if gemini_api_key:
+    genai.configure(api_key=gemini_api_key)
 
 SYSTEM_PROMPT = """
 شما «آزمایش‌یار» هستید؛ یک دستیار هوشمند و ایمن پزشکی که وظیفه تحلیل مقدماتی آزمایش‌ها و راهنمایی بیمار به مناسب‌ترین پزشک را بر عهده دارد.
@@ -28,9 +28,11 @@ SYSTEM_PROMPT = """
 
 def analyze_lab_data(user_text: str = "", image_file: Image.Image = None) -> str:
     try:
-        if not GEMINI_KEY:
-            return "خطا: کلید GEMINI_API_KEY در فایل .env تنظیم نشده است."
+        current_key = os.getenv("GEMINI_API_KEY", "")
+        if not current_key:
+            return "خطا: کلید GEMINI_API_KEY در تنظیمات رندر (Environment) یا فایل .env تنظیم نشده است."
 
+        genai.configure(api_key=current_key)
         model = genai.GenerativeModel(
             model_name="gemini-1.5-flash",
             system_instruction=SYSTEM_PROMPT
@@ -51,7 +53,11 @@ def analyze_lab_data(user_text: str = "", image_file: Image.Image = None) -> str
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(
+        request=request,
+        name="index.html",
+        context={}
+    )
 
 @app.post("/api/analyze")
 async def analyze(text: str = Form(""), file: UploadFile = File(None)):
@@ -65,4 +71,5 @@ async def analyze(text: str = Form(""), file: UploadFile = File(None)):
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
-    uvicorn.run("app:app", host="127.0.0.1", port=port, reload=True)
+    uvicorn.run("app:app", host="0.0.0.0", port=port)
+
